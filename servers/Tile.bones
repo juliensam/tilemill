@@ -48,6 +48,22 @@ server.prototype.load = function(req, res, next) {
     // contains the mtime with _updated.
     var load = this.load;
     var id = req.params.id;
+
+    // Get the project mtime for the diskcache
+    var projectPath = path.resolve(path.join(settings.files, 'project', id));
+    var projectFiles = fs.readdirSync(projectPath);
+    for(var i=0; i<projectFiles.length; i++) {
+        projectFiles[i] = fs.statSync(path.join(projectPath, projectFiles[i]));
+    }
+    var projectMTime = _(projectFiles).chain()
+            .filter(function(stat) {
+                return stat.basename !== '.thumb.png' && stat.isFile();
+            })
+            .pluck('mtime')
+            .map(Date.parse)
+            .max()
+            .value();
+
     var uri = {
         protocol: 'mapnik:',
         slashes: true,
@@ -60,7 +76,8 @@ server.prototype.load = function(req, res, next) {
         // Need not be set for a cache hit. Once the cache is
         // warmed the project need not be loaded/localized again.
         xml: req.project && req.project.xml,
-        mml: req.project && req.project.mml
+        mml: req.project && req.project.mml,
+        diskcache: settings.diskcache ? path.join(settings.files, 'export', id + '.' + projectMTime + '.mbtiles') : false
     };
 
     tilelive.load(uri, function(err, source) {
