@@ -8,6 +8,7 @@ var Step = require('step');
 var http = require('http');
 var chrono = require('chrono');
 var crashutil = require('../lib/crashutil');
+var spawn = require('child_process').spawn;
 // node v6 -> v8 compatibility
 var existsSync = require('fs').existsSync || require('path').existsSync;
 
@@ -253,6 +254,10 @@ command.prototype.initialize = function(plugin, callback) {
         case 'sync':
             console.log('Syncing export with existing upload');
             cmd.sync(model, cmd.complete);
+            break;
+        case 'rsync':
+            console.log('rsync existing project ('+opts.project+') on prod servers');
+            cmd.rsync(model, cmd.complete);
             break;
         default:
             console.log('Rendering export');
@@ -704,6 +709,56 @@ command.prototype.sync = function (project, callback) {
         resp = data;
         fs.unlink(cmd.opts.filepath, this);
     }, function(err) {
+        cmd.complete(err, resp);
+    });
+};
+
+command.prototype.rsync = function (project, callback) {
+    var cmd = this;
+
+    if(!cmd.opts || !cmd.opts.rsync || 
+       !(cmd.opts.rsync instanceof Array) ||
+       cmd.opts.rsync.length <= 0 ||
+       !cmd.opts.sshkey) {
+        cmd.complete(new Error('rsync or sshkey not set in config file or rsync not array'));
+    }
+
+    var modifier = 1/cmd.opts.rsync.length;
+    var resp = {
+        status: 'processing',
+        progress: 0,
+        remaining: cmd.opts.rsync.length,
+        updated: +new Date()};
+    cmd.opts.filepath = _(cmd.opts.files + '/project/<%=id%>').template({
+        id: project.id
+    });
+    cmd.opts.format = 'rsync';
+    Step(function() {
+        console.log('start rsync');
+        var step_callback = this;
+        cmd.opts.rsync.forEach( function(host) {
+            var rsync = spawn('/usr/share/tilemill/plugins/tilemill-rsync-export/bin/rsync.sh', [cmd.opts.sshkey, cmd.opts.filepath, host],{env: process.env, stdio: 'inherit'});
+            rsync.on('exit', function(code) {
+                if(code !== 0) {
+                    throw new Error('rsync failed with code '+code+'. See logs for more details.');
+                }
+
+                console.log('Project '+project.id+' synced on '+host);
+                resp.progress += modifier;
+                resp.remaining--;
+                resp.updated = +new Date();
+
+                if(resp.progress >= 1) {
+                    resp.status = 'complete';
+                    step_callback.apply();
+                } else {
+                    cmd.put(resp, null);
+                }
+            });
+        });
+        
+    }, function(err) {
+        console.log('rsync completed');
         cmd.complete(err, resp);
     });
 };
