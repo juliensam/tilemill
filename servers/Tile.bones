@@ -64,6 +64,15 @@ server.prototype.load = function(req, res, next) {
             .max()
             .value();
 
+    var diskcachePath = false;
+    if(settings.diskcache) {
+        if(typeof settings.diskcache == 'string' && settings.diskcache != 'true') {
+            diskcachePath = path.join(settings.diskcache,  id + '.' + projectMTime + '.mbtiles');
+        } else {
+            diskcachePath = path.join(settings.files, 'export', id + '.' + projectMTime + '.mbtiles');
+        }
+    }
+
     var uri = {
         protocol: 'mapnik:',
         slashes: true,
@@ -77,7 +86,7 @@ server.prototype.load = function(req, res, next) {
         // warmed the project need not be loaded/localized again.
         xml: req.project && req.project.xml,
         mml: req.project && req.project.mml,
-        diskcache: settings.diskcache ? path.join(settings.files, 'export', id + '.' + projectMTime + '.mbtiles') : false
+        diskcache: diskcachePath
     };
 
     tilelive.load(uri, function(err, source) {
