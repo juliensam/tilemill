@@ -67,9 +67,9 @@ server.prototype.load = function(req, res, next) {
     var diskcachePath = false;
     if(settings.diskcache) {
         if(typeof settings.diskcache == 'string' && settings.diskcache != 'true') {
-            diskcachePath = path.join(settings.diskcache,  id + '.' + projectMTime + '.mbtiles');
+            diskcachePath = path.join(settings.diskcache,  id + '.' + projectMTime);
         } else {
-            diskcachePath = path.join(settings.files, 'export', id + '.' + projectMTime + '.mbtiles');
+            diskcachePath = path.join(settings.files, 'export', id + '.' + projectMTime);
         }
     }
 
